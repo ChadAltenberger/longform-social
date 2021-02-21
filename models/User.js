@@ -1,3 +1,5 @@
+const bcrypt = require('bcryptjs');
+const usersCollection = require('../db').db().collection('users');
 const validator = require('validator');
 
 let User = function (data) {
@@ -5,6 +7,27 @@ let User = function (data) {
 	this.errors = [];
 };
 
+// CLEAN UP INPUTS
+User.prototype.cleanUp = function () {
+	if (typeof this.data.username != 'string') {
+		this.data.username = '';
+	}
+	if (typeof this.data.email != 'string') {
+		this.data.email = '';
+	}
+	if (typeof this.data.password != 'string') {
+		this.data.password = '';
+	}
+
+	// get rid of any bogus properties
+	this.data = {
+		username: this.data.username.trim().toLowerCase(),
+		email: this.data.email.trim().toLowerCase(),
+		password: this.data.password
+	};
+};
+
+// VALIDATE FORM INPUTS
 User.prototype.validate = function () {
 	if (this.data.username == '') {
 		this.errors.push('You must provide a username');
@@ -24,8 +47,8 @@ User.prototype.validate = function () {
 	if (this.data.password.length > 0 && this.data.password.length < 12) {
 		this.errors.push('Password must contain at least 12 characters');
 	}
-	if (this.data.password.length > 100) {
-		this.errors.push('Password must not exceed 100 characters');
+	if (this.data.password.length > 50) {
+		this.errors.push('Password must not exceed 50 characters');
 	}
 	if (this.data.username.length > 0 && this.data.username.length < 3) {
 		this.errors.push('Username must contain at least 3 characters');
@@ -35,10 +58,41 @@ User.prototype.validate = function () {
 	}
 };
 
+// LOGIN
+User.prototype.login = function () {
+	return new Promise((resolve, reject) => {
+		this.cleanUp();
+		usersCollection
+			.findOne({ username: this.data.username })
+			.then(attemptedUser => {
+				if (
+					attemptedUser &&
+					bcrypt.compareSync(this.data.password, attemptedUser.password)
+				) {
+					resolve('Congrats');
+				} else {
+					reject('Invalid username & password');
+				}
+			})
+			.catch(() => {
+				reject('Please try again later');
+			});
+	});
+};
+
+// REGISTER
 User.prototype.register = function () {
 	// Step 1: Validate user data
+	this.cleanUp();
 	this.validate();
+
 	// Step 2: Only if there are no validation errors then save the data into a database
+	if (!this.errors.length) {
+		// hash user password
+		let salt = bcrypt.genSaltSync(10);
+		this.data.password = bcrypt.hashSync(this.data.password, salt);
+		usersCollection.insertOne(this.data);
+	}
 };
 
 module.exports = User;
