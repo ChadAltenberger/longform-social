@@ -1,13 +1,28 @@
 const md5 = require('md5');
 const User = require('../models/User');
 
+exports.mustBeLoggedIn = (req, res, next) => {
+	if (req.session.user) {
+		next();
+	} else {
+		req.flash('errors', 'You must be logged in to perform that action.');
+		req.session.save(() => {
+			res.redirect('/');
+		});
+	}
+};
+
 // LOGIN
 exports.login = (req, res) => {
 	let user = new User(req.body);
 	user
 		.login()
 		.then(result => {
-			req.session.user = { avatar: user.avatar, username: user.data.username };
+			req.session.user = {
+				avatar: user.avatar,
+				username: user.data.username,
+				_id: user.data._id
+			};
 			req.session.save(() => {
 				res.redirect('/');
 			});
@@ -33,7 +48,11 @@ exports.register = (req, res) => {
 	user
 		.register()
 		.then(() => {
-			req.session.user = { username: user.data.username, avatar: user.avatar };
+			req.session.user = {
+				avatar: user.avatar,
+				username: user.data.username,
+				_id: user.data._id
+			};
 			req.session.save(() => {
 				res.redirect('/');
 			});
@@ -51,10 +70,7 @@ exports.register = (req, res) => {
 // HOME
 exports.home = (req, res) => {
 	if (req.session.user) {
-		res.render('home-dashboard', {
-			username: req.session.user.username,
-			avatar: req.session.user.avatar
-		});
+		res.render('home-dashboard');
 	} else {
 		res.render('home-guest', {
 			errors: req.flash('errors'),
